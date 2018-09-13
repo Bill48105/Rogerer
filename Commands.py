@@ -759,6 +759,10 @@ def admin(req, arg):
 				req.reply("Gamble timers: [%s]" % (Global.gamble_list[(arg[0])]))
 			elif len(arg) < 1:
 				req.reply("Gamble timers: [%s]" % (Global.gamble_list))
+		elif command == "gamblelock":
+			if len(arg) == 3 and arg[2].isdigit():
+				Global.gamble_list[(arg[0])][(arg[1])] = time.time() + (60*60*int(arg[2]))
+				req.reply("Locked %s for %s hours" % (arg[1],arg[2]))
 		elif command == "temp-gamble-limit":
 			t = time.time()
 			if "@gamblelimitraise" not in Global.gamble_list:
