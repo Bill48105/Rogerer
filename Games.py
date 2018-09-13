@@ -6,10 +6,15 @@ from collections import OrderedDict
 
 games = {}
 
-def check_gamble_timer(targetchannel, cmd_args, nick, source, acct, curtime, timer_min = 5, timer_max = 15, penalty_min = 10, penalty_max = 20, to_admin = False):
+def random_seed_gen():
+	randseedtime = int(time.time()*1000000)
+	random.seed((randseedtime - (randseedtime/random.randint(2,9000)))*random.randint(3,32))
+	return (randseedtime - (randseedtime/random.randint(2,9000)))*random.randint(3,32)
+
+def check_gamble_timer(targetchannel, cmd_args, nick, source, acct, curtime, timer_min = 5, timer_max = 15, penalty_min = 10, penalty_max = 20, to_admin = False, allowed_anywhere = False):
 	if targetchannel not in Global.gamble_list:
 		return False
-	if targetchannel not in Config.config["botchannels"]:
+	if targetchannel not in Config.config["botchannels"] and not allowed_anywhere:
 		timer_min = 60*timer_min
 		timer_max = 60*timer_max
 		penalty_min = 90*penalty_min
@@ -31,12 +36,15 @@ def check_gamble_timer(targetchannel, cmd_args, nick, source, acct, curtime, tim
 			penalty = random.randint((penalty_min),(penalty_max))
 			Global.gamble_list[targetchannel][acct] = lastGambleTime + penalty
 		timerApprx = random.randint(timer,timer+(30))
-		difference = (lastGambleTime + timerApprx - curtime)/60
-		if difference > 60:
-			difference = difference/60
+		difference = (lastGambleTime + timerApprx - curtime)
+		if difference > 60*60:
+			difference = difference/(60*60)
 			timeUnit = "hours"
-		else:
+		elif difference > 60:
+			difference = difference/60
 			timeUnit = "minutes"
+		else:
+			timeUnit = "seconds"
 		if not to_admin:
 			r_str = "Roger safely - begambleaware.org. "
 		else:
@@ -83,7 +91,7 @@ def roger_that(req, arg):
 	host = Irc.get_host(req.source)
 	curtime = time.time()
 	amount = 69
-	random.seed(curtime*1000)
+	random.seed(random_seed_gen())
 	user_valid, toacct = validate_user(toacct, host = host, nick = req.nick, altnick = req.altnick, allow_discord_nicks = True, hostlist = Global.gamble_list)
 	if user_valid != True:
 		if "Quiet" == user_valid: return
@@ -146,7 +154,7 @@ def lotto(req, arg):
 	minbet = 30
 	chances = 1
 	curtime = time.time()
-	random.seed(curtime*1000)
+	random.seed(random_seed_gen())
 	if "@Gamble_buildup" not in Global.gamble_list:
 		Global.gamble_list["@Gamble_buildup"] = 0
 	if host in Global.gamble_list and Global.gamble_list[host] != acct and not any(x.lower() == req.nick.lower() for x in Config.config["bridgebotnicks"]):
@@ -155,7 +163,7 @@ def lotto(req, arg):
 	if user_valid != True: return req.notice_private(user_valid)
 	if req.target == req.nick and not Irc.is_admin(req.source):
 		return req.reply("Can't lotto in private!")
-	gamble_timer_reply = check_gamble_timer(targetchannel = req.target, cmd_args = arg, nick = req.nick, source = req.source, acct = acct, curtime = curtime, timer_min = 30, timer_max = 60, penalty_min = 20, penalty_max = 2*60)
+	gamble_timer_reply = check_gamble_timer(targetchannel = req.target, cmd_args = arg, nick = req.nick, source = req.source, acct = acct, curtime = curtime, timer_min = 60, timer_max = 2*60, penalty_min = 60, penalty_max = 4*60, allowed_anywhere = True)
 	if gamble_timer_reply: return req.reply(gamble_timer_reply)
 	toacct = req.instance
 	try:
@@ -204,6 +212,7 @@ def lotto(req, arg):
 		return
 
 def cards_decks(amt_decks = 1, split_deck = False):
+	random.seed(random_seed_gen())
 	ranks = ['2', '3', '4', '5', '6', '7', '8', '9', '10', 'J', 'Q', 'K', 'A']
 	suits = ['♠','♦','♥','♣']
 	deck = [rank+suit for suit in suits for rank in ranks]
@@ -414,7 +423,7 @@ def bj(req, arg):
 	acct = Irc.account_names([req.nick])[0]
 	host = Irc.get_host(req.source)
 	minbet = 5
-	maxbet = 1000
+	maxbet = 200
 	# if Irc.is_admin(req.source):
 	# 	maxbet = 10000
 	tempmaxbet = check_gamble_raise(req.nick)
@@ -430,8 +439,8 @@ def bj(req, arg):
 	if req.nick in Global.response_read_timers and not Global.response_read_timers[req.nick]["cmd"] == "bj":
 		return req.notice_private("One game at a time!")
 	curtime = time.time()
-	random.seed(curtime*1000)
-	gamble_timer_reply = check_gamble_timer(targetchannel = req.target, cmd_args = arg, nick = req.nick, source = req.source, acct = acct, curtime = curtime, timer_min = 4, timer_max = 8, penalty_min = 5, penalty_max = 15)
+	random.seed(random_seed_gen())
+	gamble_timer_reply = check_gamble_timer(targetchannel = req.target, cmd_args = arg, nick = req.nick, source = req.source, acct = acct, curtime = curtime, timer_min = 4, timer_max = 15, penalty_min = 10, penalty_max = 30)
 	if gamble_timer_reply: return req.reply(gamble_timer_reply)
 	toacct = req.instance
 	choice = arg[0].lower()
@@ -584,7 +593,7 @@ def bj(req, arg):
 		else:
 			bj_public = False
 		try:
-			Transactions.tip(token, acct, toacct, amount, tip_source = "@BLACKJACK")
+			Transactions.tip(token, acct, toacct, amount, tip_source = "@BLACKJACK_START")
 			add_gamble_timer(targetchannel = req.target, acct = acct, curtime = curtime)
 			Global.gamble_list[host] = acct
 			dealer_hand, player_hand, deck = bj_deal()
@@ -714,7 +723,7 @@ def roulette(req, arg):
 	acct = Irc.account_names([req.nick])[0]
 	host = Irc.get_host(req.source)
 	minbet = 5
-	maxbet = 1000
+	maxbet = 400
 	# if Irc.is_admin(req.source):
 	# 	maxbet = 10000
 	tempmaxbet = check_gamble_raise(req.nick)
@@ -722,10 +731,13 @@ def roulette(req, arg):
 	won_bet_count = 0
 	lost_bets = 0
 	total_bet_amt = 0
-	roul_valid_bets = ["even","odd","1st","2nd","3rd","low","high","red","black","topline","snake","c1","c2","c3","s1","s2","s3","s4","s5","s6","s7","s8","s9","s10","s11","s12"]
-	roul_valid_bets_aliases = ["first","second","third","basket","col1","col2","col3","street1","street2","street3","street4","street5","street6","street7","street8","street9","street10","street11","street12"]
+	roul_valid_bets = ["even","odd","1st","2nd","3rd","low","high","red","black","topline","snake"]
+	roul_bets_help = ["col[1-3]","street[1-12]"]
+	roul_valid_bets_aliases = (
+		["c1","c2","c3","s1","s2","s3","s4","s5","s6","s7","s8","s9","s10","s11","s12"] +
+		["first","second","third","basket","col1","col2","col3","street1","street2","street3","street4","street5","street6","street7","street8","street9","street10","street11","street12"] )
 	curtime = time.time()
-	random.seed(curtime*1000)
+	random.seed(random_seed_gen())
 	# if not Irc.is_admin(req.source):
 	# 	return # temporary disable
 	if host in Global.gamble_list and Global.gamble_list[host] != acct and not any(x.lower() == req.nick.lower() for x in Config.config["bridgebotnicks"]):
@@ -734,7 +746,7 @@ def roulette(req, arg):
 	if user_valid != True: return req.notice_private(user_valid)
 	if req.target == req.nick and not Irc.is_admin(req.source):
 		return req.reply("Can't roulette in private!")
-	gamble_timer_reply = check_gamble_timer(targetchannel = req.target, cmd_args = arg, nick = req.nick, source = req.source, acct = acct, curtime = curtime, timer_min = 5, timer_max = 10, penalty_min = 10, penalty_max = 20)
+	gamble_timer_reply = check_gamble_timer(targetchannel = req.target, cmd_args = arg, nick = req.nick, source = req.source, acct = acct, curtime = curtime, timer_min = 5, timer_max = 20, penalty_min = 10, penalty_max = 25)
 	if gamble_timer_reply: return req.reply(gamble_timer_reply)
 	toacct = req.instance
 	token = Logger.token()
@@ -743,7 +755,7 @@ def roulette(req, arg):
 		bet_choice = arg[(1+argoffset)].lower()
 		if bet_choice not in (roul_valid_bets+roul_valid_bets_aliases) and not (bet_choice.isdigit() and int(bet_choice) >= 0 and int(bet_choice) <= 36):
 			# return req.reply(gethelp("roul"))
-			inval_bet_str = "Invalid bet, available bets: %s or number of choice 0-36" % (roul_valid_bets)
+			inval_bet_str = "Invalid bet, available bets: %s or number of choice 0-36" % ((roul_valid_bets+roul_bets_help))
 			if req.target not in Config.config["botchannels"]:
 				return req.notice_private(inval_bet_str)
 			else:
@@ -761,13 +773,22 @@ def roulette(req, arg):
 	add_gamble_timer(targetchannel = req.target, acct = acct, curtime = curtime)
 	Global.gamble_list[host] = acct
 	roulette_nums = [0, 32, 15, 19, 4, 21, 2, 25, 17, 34, 6, 27, 13, 36, 11, 30, 8, 23, 10, 5, 24, 16, 33, 1, 20, 14, 31, 9, 22, 18, 29, 7, 28, 12, 35, 3, 26]
-	landon1 = random.choice(roulette_nums)
-	rindex = roulette_nums.index(landon1)
-	if rindex == 36: rindex = -1
-	landon2 = roulette_nums[rindex+1]
-	landon3 = roulette_nums[rindex+2]
-	reply = "Fondling balls.. %i .. %i .. landed on %i" % (landon1, landon2, landon3)
-	landon = landon3
+	r_red_nums = [1, 3, 5, 7, 9, 12, 14, 16, 18, 19, 21, 23, 25, 27, 30, 32, 34, 36]
+	landon_nums = []
+	landon_nums.append(random.choice(roulette_nums))
+	rindex = roulette_nums.index(landon_nums[0])
+	if rindex == 0: rindex = 37
+	landon_nums.append(roulette_nums[rindex-1])
+	landon_nums.append(roulette_nums[rindex-2])
+	landon = landon_nums[0]
+	for x in range(len(landon_nums)):
+		if landon_nums[x] in r_red_nums:
+			landon_nums[x] = coloured_text(text = str(landon_nums[x]), colour = "04", channel = req.target)
+		elif landon_nums[x] == 0:
+			landon_nums[x] = coloured_text(text = str(landon_nums[x]), colour = "03", channel = req.target)
+		else:
+			landon_nums[x] = str(landon_nums[x])
+	reply = "Fondling a ball.. [ %s ][ %s ][ %s\x02%s\x02%s ]" % (landon_nums[2], landon_nums[1], coloured_text(text = ">>", colour = "03", channel = req.target), landon_nums[0], coloured_text(text = "<<", colour = "03", channel = req.target))
 	try:
 		Transactions.tip(token, acct, toacct, total_bet_amt, tip_source = "@ROULETTE")
 		for i in range(bet_count):
