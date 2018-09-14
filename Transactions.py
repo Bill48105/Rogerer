@@ -133,6 +133,32 @@ def faucet_board(instance, category = 'jackpot'):
 		db.close()
 		return False
 
+def get_game_stats(instance, mode = 'out', game_ident = "@POKER", acct = "", interval = "10 minutes", count = True):
+	game_ident = "@"+(game_ident).upper()
+	db = database()
+	cur = db.cursor()
+	if mode == 'out':
+		cur.execute("SELECT timestamp,amount FROM txlog WHERE ((timestamp < EXTRACT(EPOCH FROM CURRENT_TIMESTAMP - interval %s)) IS FALSE) AND address= %s AND source= %s AND destination= %s ORDER BY timestamp DESC limit 2000", (interval, game_ident+"_WIN", instance, acct))
+	elif mode == 'out-sum':
+		cur.execute("SELECT SUM(amount) FROM txlog WHERE ((timestamp < EXTRACT(EPOCH FROM CURRENT_TIMESTAMP - interval %s)) IS FALSE) AND address ILIKE %s AND source= %s AND destination= %s ", (interval, (game_ident+'%'), instance, acct))
+	elif mode == 'in':
+		cur.execute("SELECT timestamp,amount FROM txlog WHERE ((timestamp < EXTRACT(EPOCH FROM CURRENT_TIMESTAMP - interval %s)) IS FALSE) AND address= %s AND source= %s AND destination= %s ORDER BY timestamp DESC limit 2000", (interval, game_ident+"_START", acct, instance))
+	elif mode == 'in-sum':
+		cur.execute("SELECT SUM(amount) FROM txlog WHERE ((timestamp < EXTRACT(EPOCH FROM CURRENT_TIMESTAMP - interval %s)) IS FALSE) AND address ILIKE %s AND source= %s AND destination= %s ", (interval, (game_ident+'%'), acct, instance))
+	if cur.rowcount:
+		r = cur.fetchone()
+		c = cur.rowcount
+		db.close()
+		if count: return c
+		if r[0] == None:
+			r = 0
+		else:
+			r = r[0]
+		return r
+	else:
+		db.close()
+		return False
+
 def tip(token, source, target, amount, tip_source = None):
 	db = database()
 	cur = db.cursor()

@@ -869,6 +869,30 @@ def admin(req, arg):
 		elif command == "list-mods-iamsure" and Irc.is_super_admin(req.source):
 			if "admins" in Config.config:
 				req.reply("Mods: %s" % (Config.config["admins"]))
+		elif command == "game-stats" and Irc.is_super_admin(req.source):
+			"""game-stats GAME NICK X [DAYS/HOURS/MINUTES]"""
+			if len(arg) < 2: return
+			game_ident = arg[0]
+			nick = arg[1]
+			time_amt = 1
+			if len(arg) >= 3:
+				time_amt = int(arg[2])
+			interval = "minutes"
+			if len(arg) >= 4:
+				if arg[3].lower() == "minutes":
+					interval = "minutes"
+				elif arg[3].lower() == "hours":
+					interval = "hours"
+				elif arg[3].lower() == "days":
+					interval = "days"
+			interval = "%i %s" % (time_amt, interval)
+			acct = Irc.account_names([nick])[0]
+			InSum = Transactions.get_game_stats(req.instance, mode = "in-sum", game_ident = game_ident, acct = acct, interval = interval, count = False)
+			OutSum = Transactions.get_game_stats(req.instance, mode = "out-sum", game_ident = game_ident, acct = acct, interval = interval, count = False)
+			InCount = Transactions.get_game_stats(req.instance, mode = "in", game_ident = game_ident, acct = acct, interval = interval, count = True)
+			OutCount = Transactions.get_game_stats(req.instance, mode = "out", game_ident = game_ident, acct = acct, interval = interval, count = True)
+			Difference = (int(OutSum) - int(InSum))
+			req.reply("%s: %s won a total of %i ( %i - %i ), played a total of %i times." % (game_ident, nick, Difference, OutSum, InSum, InCount))
 		else:
 			req.reply("You are not authorised to use that command.")
 
